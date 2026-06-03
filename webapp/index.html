@@ -256,20 +256,20 @@ async function requestPayment() {
 // ---- render ----
 function renderStatus(s) {
     if (!s.subscribed) {
-        tg.MainButton.setText('💳 Оформить подписку — 300 ₽/мес');
+        tg.MainButton.setText('💳 Оформить подписку — 1000 ₽/мес');
         tg.MainButton.show();
         return `
           <div class="status-card inactive">
             <div class="status-emoji">❌</div>
             <div class="status-title">Подписка не активна</div>
             <div class="status-sub">Оформи подписку — и участвуй во всех ближайших розыгрышах</div>
-            <button class="pay-btn" onclick="requestPayment()">💳 Оформить — 300 ₽/мес</button>
+            <button class="pay-btn" onclick="requestPayment()">💳 Оформить — 1000 ₽/мес</button>
           </div>`;
     }
     const days = daysDiff(s.expires_at);
     const date = fmtDate(s.expires_at);
     if (days <= 5) {
-        tg.MainButton.setText('🔄 Продлить подписку — 300 ₽/мес');
+        tg.MainButton.setText('🔄 Продлить подписку — 1000 ₽/мес');
         tg.MainButton.show();
         return `
           <div class="status-card expiring">
