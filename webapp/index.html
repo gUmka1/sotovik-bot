@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Сотовик Клуб</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+            background: var(--tg-theme-bg-color, #f2f2f7);
+            color: var(--tg-theme-text-color, #000);
+            min-height: 100vh;
+            padding-bottom: 100px;
+        }
+
+        /* Header */
+        .header {
+            background: var(--tg-theme-section-bg-color, #fff);
+            padding: 24px 16px 18px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+        .logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #FF6B35 0%, #FF9A5C 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            margin: 0 auto 10px;
+            box-shadow: 0 4px 16px rgba(255,107,53,0.35);
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.4px;
+        }
+        .header p {
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            margin-top: 3px;
+        }
+
+        /* Section */
+        .section {
+            padding: 20px 16px 0;
+        }
+        .section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+            padding-left: 4px;
+        }
+
+        /* Card */
+        .card {
+            background: var(--tg-theme-section-bg-color, #fff);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        /* Status card */
+        .status-card {
+            padding: 18px;
+            border-radius: 16px;
+            color: #fff;
+        }
+        .status-card.active   { background: linear-gradient(135deg, #30D158, #25A244); }
+        .status-card.expiring { background: linear-gradient(135deg, #FF9F0A, #FF8000); }
+        .status-card.inactive { background: linear-gradient(135deg, #FF453A, #D93025); }
+
+        .status-emoji { font-size: 34px; margin-bottom: 10px; }
+        .status-title { font-size: 19px; font-weight: 700; }
+        .status-sub   { font-size: 13px; opacity: 0.88; margin-top: 4px; line-height: 1.4; }
+
+        .pay-btn {
+            display: block;
+            width: 100%;
+            margin-top: 14px;
+            padding: 13px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.22);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .pay-btn:active { opacity: 0.75; }
+
+        /* Giveaway */
+        .giveaway-card { padding: 18px; }
+        .giveaway-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,149,0,0.12);
+            color: #FF9500;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 11px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+        }
+        .giveaway-prize {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+        .giveaway-desc {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        .giveaway-stats {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .stat-box {
+            flex: 1;
+            background: var(--tg-theme-bg-color, #f2f2f7);
+            border-radius: 12px;
+            padding: 12px 10px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            margin-top: 3px;
+        }
+
+        /* Winners */
+        .winner-row {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--tg-theme-bg-color, #f2f2f7);
+        }
+        .winner-row:last-child { border-bottom: none; }
+        .winner-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #5856D6, #AF52DE);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-right: 12px;
+        }
+        .winner-info { flex: 1; min-width: 0; }
+        .winner-name  { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .winner-prize { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); margin-top: 2px; }
+        .winner-date  { font-size: 12px; color: var(--tg-theme-hint-color, #8e8e93); text-align: right; flex-shrink: 0; }
+
+        /* Empty / Loading */
+        .placeholder {
+            text-align: center;
+            padding: 28px 16px;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .placeholder .icon { font-size: 36px; margin-bottom: 8px; }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--tg-theme-hint-color, #8e8e93);
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">📱</div>
+    <h1>Сотовик Клуб</h1>
+    <p>Розыгрыши техники каждый месяц</p>
+</div>
+
+<div id="root"><div class="loading">Загрузка...</div></div>
+
+<script>
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+const userId   = tg.initDataUnsafe?.user?.id;
+const initData = tg.initData;
+
+// ---- helpers ----
+function daysDiff(dateStr) {
+    const d = new Date(dateStr);
+    return Math.ceil((d - Date.now()) / 864e5);
+}
+function fmtDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('ru-RU', {day:'numeric', month:'long', year:'numeric'});
+}
+function fmtMonth(dateStr) {
+    return new Date(dateStr).toLocaleDateString('ru-RU', {month:'long', year:'numeric'});
+}
+function plural(n, one, few, many) {
+    const m = n % 10, mm = n % 100;
+    if (mm >= 11 && mm <= 19) return many;
+    if (m === 1) return one;
+    if (m >= 2 && m <= 4) return few;
+    return many;
+}
+
+// ---- payment ----
+async function requestPayment() {
+    tg.MainButton.showProgress();
+    try {
+        const res = await fetch('/api/pay', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({initData})
+        });
+        if (res.ok) {
+            tg.MainButton.hideProgress();
+            tg.showAlert('Счёт отправлен в чат с ботом!\nПерейди в бот и оплати там.', () => tg.close());
+        } else {
+            throw new Error();
+        }
+    } catch {
+        tg.MainButton.hideProgress();
+        tg.showAlert('Ошибка. Попробуй оформить через бот командой /pay');
+    }
+}
+
+// ---- render ----
+function renderStatus(s) {
+    if (!s.subscribed) {
+        tg.MainButton.setText('💳 Оформить подписку — 300 ₽/мес');
+        tg.MainButton.show();
+        return `
+          <div class="status-card inactive">
+            <div class="status-emoji">❌</div>
+            <div class="status-title">Подписка не активна</div>
+            <div class="status-sub">Оформи подписку — и участвуй во всех ближайших розыгрышах</div>
+            <button class="pay-btn" onclick="requestPayment()">💳 Оформить — 300 ₽/мес</button>
+          </div>`;
+    }
+    const days = daysDiff(s.expires_at);
+    const date = fmtDate(s.expires_at);
+    if (days <= 5) {
+        tg.MainButton.setText('🔄 Продлить подписку — 300 ₽/мес');
+        tg.MainButton.show();
+        return `
+          <div class="status-card expiring">
+            <div class="status-emoji">⏰</div>
+            <div class="status-title">Истекает через ${days} ${plural(days,'день','дня','дней')}</div>
+            <div class="status-sub">Активна до ${date}. Продли чтобы не потерять место в розыгрыше!</div>
+            <button class="pay-btn" onclick="requestPayment()">🔄 Продлить подписку</button>
+          </div>`;
+    }
+    return `
+      <div class="status-card active">
+        <div class="status-emoji">✅</div>
+        <div class="status-title">Подписка активна</div>
+        <div class="status-sub">До ${date} · ещё ${days} ${plural(days,'день','дня','дней')}</div>
+      </div>`;
+}
+
+function renderGiveaway(data) {
+    if (!data.giveaway) {
+        return `<div class="card"><div class="placeholder"><div class="icon">🎰</div>Розыгрыш скоро будет объявлен</div></div>`;
+    }
+    const g = data.giveaway;
+    const days = daysDiff(g.draw_date);
+    const date = fmtDate(g.draw_date);
+    const [d, mon] = date.split(' ');
+    return `
+      <div class="card giveaway-card">
+        <div class="giveaway-badge">⏳ До розыгрыша ${days} ${plural(days,'день','дня','дней')}</div>
+        <div class="giveaway-prize">🎁 ${g.prize}</div>
+        ${g.description ? `<div class="giveaway-desc">${g.description}</div>` : ''}
+        <div class="giveaway-stats">
+          <div class="stat-box">
+            <div class="stat-value">${data.participants}</div>
+            <div class="stat-label">Участников</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${d} ${mon}</div>
+            <div class="stat-label">Дата розыгрыша</div>
+          </div>
+        </div>
+      </div>`;
+}
+
+function renderWinners(list) {
+    if (!list.length) {
+        return `<div class="card"><div class="placeholder"><div class="icon">🏆</div>Победители появятся здесь после первого розыгрыша</div></div>`;
+    }
+    const rows = list.map(w => {
+        const letter = (w.full_name || w.username || '?')[0].toUpperCase();
+        return `
+          <div class="winner-row">
+            <div class="winner-avatar">${letter}</div>
+            <div class="winner-info">
+              <div class="winner-name">${w.full_name || w.username}</div>
+              <div class="winner-prize">🏆 ${w.prize}</div>
+            </div>
+            <div class="winner-date">${fmtMonth(w.won_at)}</div>
+          </div>`;
+    }).join('');
+    return `<div class="card">${rows}</div>`;
+}
+
+async function main() {
+    try {
+        const [status, giveaway, winners] = await Promise.all([
+            userId ? fetch(`/api/user/${userId}`).then(r => r.json()) : Promise.resolve({subscribed: false}),
+            fetch('/api/giveaway').then(r => r.json()),
+            fetch('/api/winners').then(r => r.json()),
+        ]);
+
+        document.getElementById('root').innerHTML = `
+          <div class="section">
+            <div class="section-label">Ваша подписка</div>
+            ${renderStatus(status)}
+          </div>
+          <div class="section">
+            <div class="section-label">Текущий розыгрыш</div>
+            ${renderGiveaway(giveaway)}
+          </div>
+          <div class="section">
+            <div class="section-label">Прошлые победители</div>
+            ${renderWinners(winners)}
+          </div>`;
+    } catch(e) {
+        document.getElementById('root').innerHTML =
+            `<div class="loading">Не удалось загрузить данные. Попробуй позже.</div>`;
+    }
+}
+
+tg.MainButton.onClick(requestPayment);
+main();
+</script>
+</body>
+</html>
