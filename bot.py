@@ -26,7 +26,7 @@ CHANNEL_ID   = int(os.getenv("CHANNEL_ID"))
 ADMIN_ID     = int(os.getenv("ADMIN_ID"))
 YUKASSA_TOKEN = os.getenv("YUKASSA_TOKEN")
 WEBAPP_URL   = os.getenv("WEBAPP_URL")
-PRICE = 30000
+PRICE = 100000
 
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
@@ -34,7 +34,7 @@ router = Router()
 
 
 def main_kb():
-    buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 300 ₽/мес", callback_data="pay")]]
+    buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 1000 ₽/мес", callback_data="pay")]]
     if WEBAPP_URL:
         buttons.insert(0, [InlineKeyboardButton(text="🎰 Открыть Сотовик Клуб", web_app=WebAppInfo(url=WEBAPP_URL))])
     buttons.append([InlineKeyboardButton(text="❓ Как устроен розыгрыш?", callback_data="faq")])
@@ -51,7 +51,7 @@ async def cmd_start(message: Message):
         "• 📦 Доступ к закупочным оптовым ценам на ориг. технику Apple, Dyson, Sony и других брендов\n"
         "• 🎰 Ежемесячный розыгрыш iPhone 17 / 17 Pro / 17 Pro Max, MacBook, iMac, AirPods\n"
         "• 📺 Прямой эфир с объявлением победителя\n\n"
-        "💰 <b>300 ₽ / месяц</b>\n\n"
+        "💰 <b>1000 ₽ / месяц</b>\n\n"
         "Нажми чтобы оформить 👇",
         parse_mode="HTML",
         reply_markup=main_kb()
@@ -276,7 +276,7 @@ async def scheduler():
                     "Оформи снова — и сразу вернёшься + попадёшь в ближайший розыгрыш! 🏆",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="💳 Оформить снова — 300 ₽/мес", callback_data="pay")]
+                        [InlineKeyboardButton(text="💳 Оформить снова — 1000 ₽/мес", callback_data="pay")]
                     ])
                 )
             except Exception:
