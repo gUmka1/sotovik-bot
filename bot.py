@@ -37,7 +37,10 @@ def main_kb():
     buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 1000 ₽/мес", callback_data="pay")]]
     if WEBAPP_URL:
         buttons.insert(0, [InlineKeyboardButton(text="🎰 Открыть Сотовик Клуб", web_app=WebAppInfo(url=WEBAPP_URL))])
-    buttons.append([InlineKeyboardButton(text="❓ Как устроен розыгрыш?", callback_data="faq")])
+    buttons.append([
+        InlineKeyboardButton(text="❓ Как устроен розыгрыш?", callback_data="faq"),
+        InlineKeyboardButton(text="📋 Условия", callback_data="conditions"),
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -74,6 +77,47 @@ async def process_faq(callback):
         parse_mode="HTML",
         reply_markup=kb
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "conditions")
+async def process_conditions(callback):
+    text = (
+        "⚡️ <b>РОЗЫГРЫШ iPhone 17 PRO 256Gb ЗА ПОДПИСКУ</b>\n\n"
+        "Хотите получить главный приз — новенький iPhone 17 PRO и ещё 9 оригинальных гаджетов для Apple iPhone?\n"
+        "Вы уже с нами!?\n\n"
+        "Федеральная Сеть Электроники <b>SOTOViK</b>, совместно с «DK Auto SPB» разыгрывают <b>iPhone 17 PRO 256 Gb</b> за подписку в закрытый канал 🔐\n\n"
+        "<b>Что нужно сделать, чтобы участвовать?</b>\n\n"
+        "1. Быть подписанным на официальный Telegram-канал SOTOViK (@sotovik_ru) и участвовать в нашем розыгрыше 30 Июня 2026г\n\n"
+        "2. Подписаться на Telegram-канал нашего Автомобильного Партнёра «DK Auto SPb» (@dkautospb)\n\n"
+        "3. Нажать кнопку «Принять участие» под постом | перейти в закрытый канал подписки, выполнить условия подписки\n\n"
+        "4. Переслать розыгрыш трём своим друзьям (сохранить скрин пересылки) 📸\n\n"
+        "<b>Условия получения призов:</b>\n"
+        "— Победитель данного розыгрыша iPhone выбирает цвет на своё усмотрение.\n"
+        "— Доставка осуществляется в любую точку РФ транспортной компанией СДЭК.\n"
+        "— Чем больше друзей вы пригласите, тем выше ваши шансы на победу!\n\n"
+        "📅 Итоги розыгрыша будут объявлены <b>30 июня 2026г. в 20:00</b> в нашем Telegram-канале!\n"
+        "Победителей определит официальный бот-рандомайзер 🤖\n\n"
+        "Не упустите шанс исполнить свою мечту — участвуйте прямо сейчас и пригласите друга!\n\n"
+        "👥 Участников: 199\n"
+        "🏆 Призовых мест: 10\n"
+        "📅 Дата розыгрыша: 20:00, 30.06.2026 MSK (в процессе набора подписчиков)\n\n"
+        "<b>Победителей/подписчиков закрытого канала SOTOViK ждут 10 призов:</b>\n\n"
+        "1. 📱 iPhone 17 PRO 256 GB, гарантия от сервисного центра — 12 месяцев!\n"
+        "2. 🎧 Наушники Apple AirPods 4 New\n"
+        "3. 🔋 Портативная б/проводная зарядка VLP\n"
+        "4. 🔋 MagSafe PowerBank VLP\n"
+        "5. 👕🧢 Фирменный мерч SOTOViK\n"
+        "6. 🧢👕 Фирменный мерч SOTOViK\n"
+        "7. 👕🧢 Фирменный мерч SOTOViK\n"
+        "8. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple\n"
+        "9. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple\n"
+        "10. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оформить подписку", callback_data="pay")]
+    ])
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()
 
 
