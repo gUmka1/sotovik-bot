@@ -21,11 +21,14 @@ from database import (
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN    = os.getenv("BOT_TOKEN")
-CHANNEL_ID   = int(os.getenv("CHANNEL_ID"))
-ADMIN_ID     = int(os.getenv("ADMIN_ID"))
+BOT_TOKEN     = os.getenv("BOT_TOKEN")
+CHANNEL_ID    = int(os.getenv("CHANNEL_ID"))
+ADMIN_ID      = int(os.getenv("ADMIN_ID"))
 YUKASSA_TOKEN = os.getenv("YUKASSA_TOKEN")
-WEBAPP_URL   = os.getenv("WEBAPP_URL")
+WEBAPP_URL    = os.getenv("WEBAPP_URL")
+MANUAL_PHONE  = os.getenv("MANUAL_PHONE", "")
+MANUAL_CARD   = os.getenv("MANUAL_CARD", "")
+MANUAL_NAME   = os.getenv("MANUAL_NAME", "")
 PRICE = 100000
 
 bot = Bot(token=BOT_TOKEN)
@@ -34,7 +37,10 @@ router = Router()
 
 
 def main_kb():
-    buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 1000 ₽/мес", callback_data="pay")]]
+    buttons = [
+        [InlineKeyboardButton(text="💳 Оплатить картой — 1000 ₽/мес", callback_data="pay")],
+        [InlineKeyboardButton(text="📱 Оплатить через СБП / перевод", callback_data="pay_manual")],
+    ]
     if WEBAPP_URL:
         buttons.insert(0, [InlineKeyboardButton(text="🎰 Открыть Сотовик Клуб", web_app=WebAppInfo(url=WEBAPP_URL))])
     buttons.append([
@@ -284,6 +290,131 @@ async def cmd_set_winner(message: Message):
         )
     except Exception:
         pass
+
+
+@router.callback_query(F.data == "pay_manual")
+async def process_pay_manual(callback):
+    user = callback.from_user
+    lines = []
+    if MANUAL_PHONE:
+        lines.append(f"📱 <b>Телефон (СБП):</b> <code>{MANUAL_PHONE}</code>")
+    if MANUAL_CARD:
+        lines.append(f"💳 <b>Номер карты:</b> <code>{MANUAL_CARD}</code>")
+    if MANUAL_NAME:
+        lines.append(f"👤 <b>Получатель:</b> {MANUAL_NAME}")
+    if not lines:
+        await callback.answer("Реквизиты ещё не настроены. Свяжитесь с администратором.", show_alert=True)
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"user_paid_{user.id}")]
+    ])
+    await callback.message.answer(
+        f"📱 <b>Оплата через СБП или перевод</b>\n\n"
+        f"Переведите <b>1 000 ₽</b> по реквизитам:\n\n"
+        + "\n".join(lines) +
+        f"\n\n💬 В комментарии укажите: <code>Сотовик {user.id}</code>\n\n"
+        f"После перевода нажмите кнопку — мы проверим и выдадим доступ в течение нескольких минут.",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("user_paid_"))
+async def process_user_paid(callback):
+    user = callback.from_user
+    user_id = int(callback.data.split("_")[-1])
+    if user.id != user_id:
+        await callback.answer("Это не ваша кнопка.", show_alert=True)
+        return
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{user_id}"),
+        InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"reject_{user_id}"),
+    ]])
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 <b>Заявка на оплату (СБП/перевод)</b>\n\n"
+        f"👤 {user.full_name}\n"
+        f"🔗 @{user.username or 'без username'}\n"
+        f"🆔 <code>{user.id}</code>\n\n"
+        f"Проверьте поступление 1 000 ₽ (комментарий: <code>Сотовик {user.id}</code>) и подтвердите.",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await callback.message.answer(
+        "⏳ <b>Заявка отправлена на проверку!</b>\n\n"
+        "Обычно доступ открывается в течение нескольких минут.",
+        parse_mode="HTML"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("approve_"))
+async def process_admin_approve(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    user_id = int(callback.data.split("_")[-1])
+    expires_at  = (datetime.now() + timedelta(days=30)).isoformat()
+    expires_str = (datetime.now() + timedelta(days=30)).strftime('%d.%m.%Y')
+    try:
+        chat = await bot.get_chat(user_id)
+        full_name = chat.full_name or str(user_id)
+        username  = chat.username or ""
+    except Exception:
+        full_name, username = str(user_id), ""
+    await add_subscriber(user_id=user_id, username=username, full_name=full_name, expires_at=expires_at)
+    invite = await bot.create_chat_invite_link(
+        chat_id=CHANNEL_ID,
+        member_limit=1,
+        expire_date=int((datetime.now() + timedelta(hours=24)).timestamp())
+    )
+    await bot.send_message(
+        user_id,
+        f"🎉 <b>Оплата подтверждена! Добро пожаловать в Сотовик Клуб!</b>\n\n"
+        f"👇 Ссылка для входа (действует 24 часа):\n{invite.invite_link}\n\n"
+        f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+        f"Удачи в розыгрыше! 🏆",
+        parse_mode="HTML"
+    )
+    try:
+        await callback.message.edit_text(
+            callback.message.text + f"\n\n✅ Подтверждено — доступ выдан до {expires_str}",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    await callback.answer("Доступ выдан!")
+
+
+@router.callback_query(F.data.startswith("reject_"))
+async def process_admin_reject(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    user_id = int(callback.data.split("_")[-1])
+    await bot.send_message(
+        user_id,
+        "❌ <b>Платёж не найден</b>\n\n"
+        "Мы не обнаружили перевод на нашем счёте.\n"
+        "Попробуй снова или напиши администратору.",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📱 Попробовать снова", callback_data="pay_manual")]
+        ])
+    )
+    try:
+        await callback.message.edit_text(
+            callback.message.text + "\n\n❌ Отклонено",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    await callback.answer("Заявка отклонена.")
 
 
 async def scheduler():
