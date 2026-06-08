@@ -37,30 +37,49 @@ router = Router()
 async def _activate_user(user_id: int, full_name: str, username: str):
     expires_at = (datetime.now() + timedelta(days=30)).isoformat()
     await add_subscriber(user_id=user_id, username=username, full_name=full_name, expires_at=expires_at)
-    invite = await bot.create_chat_invite_link(
-        chat_id=CHANNEL_ID,
-        member_limit=1,
-        expire_date=int((datetime.now() + timedelta(hours=24)).timestamp())
-    )
     expires_str = (datetime.now() + timedelta(days=30)).strftime('%d.%m.%Y')
-    await bot.send_message(
-        user_id,
-        f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
-        f"Оплата подтверждена.\n\n"
-        f"👇 Ссылка для входа в канал (действует 24 часа):\n"
-        f"{invite.invite_link}\n\n"
-        f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
-        f"Удачи в розыгрыше! 🏆",
-        parse_mode="HTML"
-    )
+
+    try:
+        invite = await bot.create_chat_invite_link(
+            chat_id=CHANNEL_ID,
+            member_limit=1,
+            expire_date=int((datetime.now() + timedelta(hours=24)).timestamp())
+        )
+        invite_link = invite.invite_link
+    except Exception as e:
+        logging.error("create_chat_invite_link failed for CHANNEL_ID=%s: %s", CHANNEL_ID, e)
+        invite_link = None
+
+    if invite_link:
+        await bot.send_message(
+            user_id,
+            f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
+            f"Оплата подтверждена.\n\n"
+            f"👇 Ссылка для входа в канал (действует 24 часа):\n"
+            f"{invite_link}\n\n"
+            f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+            f"Удачи в розыгрыше! 🏆",
+            parse_mode="HTML"
+        )
+    else:
+        await bot.send_message(
+            user_id,
+            f"🎉 <b>Оплата подтверждена!</b>\n\n"
+            f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+            f"Ссылку на канал администратор пришлёт вам в ближайшее время.",
+            parse_mode="HTML"
+        )
+
     subscribers = await get_active_subscribers()
+    link_status = invite_link or "⚠️ НЕ УДАЛОСЬ СОЗДАТЬ — отправь ссылку вручную!"
     await bot.send_message(
         ADMIN_ID,
         f"💰 <b>Новый подписчик!</b>\n\n"
         f"👤 {full_name}\n"
         f"🔗 @{username or 'без username'}\n"
-        f"🆔 {user_id}\n"
-        f"📅 До: {expires_str}\n\n"
+        f"🆔 <code>{user_id}</code>\n"
+        f"📅 До: {expires_str}\n"
+        f"🔗 Инвайт: {link_status}\n\n"
         f"👥 Всего активных: {len(subscribers)}",
         parse_mode="HTML"
     )
