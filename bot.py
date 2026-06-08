@@ -206,7 +206,12 @@ async def process_confirm_payment(callback):
     except Exception:
         full_name = str(user_id)
         username = ""
-    await _activate_user(user_id, full_name, username)
+    try:
+        await _activate_user(user_id, full_name, username)
+    except Exception as e:
+        logging.exception("Error activating user %s", user_id)
+        await callback.answer(f"Ошибка: {e}", show_alert=True)
+        return
     try:
         await callback.message.edit_text(
             callback.message.text + "\n\n✅ <b>Подтверждено! Доступ выдан.</b>",
@@ -214,7 +219,7 @@ async def process_confirm_payment(callback):
         )
     except Exception:
         pass
-    await callback.answer("Доступ выдан!")
+    await callback.answer("Доступ выдан!", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("decline_"))
