@@ -243,7 +243,7 @@ async function requestPayment() {
         });
         if (res.ok) {
             tg.MainButton.hideProgress();
-            tg.showAlert('Счёт отправлен в чат с ботом!\nПерейди в бот и оплати там.', () => tg.close());
+            tg.showAlert('QR-код отправлен в чат с ботом!\nОтсканируй и оплати 1000 ₽, затем нажми «Я оплатил».', () => tg.close());
         } else {
             throw new Error();
         }
