@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import random
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
@@ -9,7 +10,7 @@ load_dotenv()
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
 from aiogram.types import (
-    Message, LabeledPrice, PreCheckoutQuery,
+    Message, FSInputFile,
     InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 )
 
@@ -21,16 +22,48 @@ from database import (
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN    = os.getenv("BOT_TOKEN")
-CHANNEL_ID   = int(os.getenv("CHANNEL_ID"))
-ADMIN_ID     = int(os.getenv("ADMIN_ID"))
-YUKASSA_TOKEN = os.getenv("YUKASSA_TOKEN")
-WEBAPP_URL   = os.getenv("WEBAPP_URL")
-PRICE = 100000
+BOT_TOKEN  = os.getenv("BOT_TOKEN")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+ADMIN_ID   = int(os.getenv("ADMIN_ID"))
+WEBAPP_URL = os.getenv("WEBAPP_URL")
+
+QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_feZg.png")
 
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
 router = Router()
+
+
+async def _activate_user(user_id: int, full_name: str, username: str):
+    expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+    await add_subscriber(user_id=user_id, username=username, full_name=full_name, expires_at=expires_at)
+    invite = await bot.create_chat_invite_link(
+        chat_id=CHANNEL_ID,
+        member_limit=1,
+        expire_date=int((datetime.now() + timedelta(hours=24)).timestamp())
+    )
+    expires_str = (datetime.now() + timedelta(days=30)).strftime('%d.%m.%Y')
+    await bot.send_message(
+        user_id,
+        f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
+        f"Оплата подтверждена.\n\n"
+        f"👇 Ссылка для входа в канал (действует 24 часа):\n"
+        f"{invite.invite_link}\n\n"
+        f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+        f"Удачи в розыгрыше! 🏆",
+        parse_mode="HTML"
+    )
+    subscribers = await get_active_subscribers()
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 <b>Новый подписчик!</b>\n\n"
+        f"👤 {full_name}\n"
+        f"🔗 @{username or 'без username'}\n"
+        f"🆔 {user_id}\n"
+        f"📅 До: {expires_str}\n\n"
+        f"👥 Всего активных: {len(subscribers)}",
+        parse_mode="HTML"
+    )
 
 
 def main_kb():
@@ -123,64 +156,93 @@ async def process_conditions(callback):
 
 @router.callback_query(F.data == "pay")
 async def process_pay(callback):
-    await bot.send_invoice(
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{callback.from_user.id}")]
+    ])
+    await bot.send_photo(
         chat_id=callback.from_user.id,
-        title="Подписка Сотовик Клуб",
-        description="Закрытый канал + розыгрыш техники каждый месяц в прямом эфире",
-        payload="subscription_1month",
-        provider_token=YUKASSA_TOKEN,
-        currency="RUB",
-        prices=[LabeledPrice(label="Подписка на 1 месяц", amount=PRICE)],
-        start_parameter="subscription"
+        photo=FSInputFile(QR_PATH),
+        caption=(
+            "💳 <b>Оплата подписки — 1000 ₽/мес</b>\n\n"
+            "1. Отсканируй QR-код камерой телефона\n"
+            "2. Оплати 1000 ₽\n"
+            "3. Нажми <b>«✅ Я оплатил»</b> — мы проверим и откроем доступ в течение нескольких минут"
+        ),
+        parse_mode="HTML",
+        reply_markup=kb
     )
     await callback.answer()
 
 
-@router.pre_checkout_query()
-async def pre_checkout(pre_checkout_query: PreCheckoutQuery):
-    await pre_checkout_query.answer(ok=True)
-
-
-@router.message(F.successful_payment)
-async def successful_payment(message: Message):
-    user = message.from_user
-    expires_at = (datetime.now() + timedelta(days=30)).isoformat()
-
-    await add_subscriber(
-        user_id=user.id,
-        username=user.username or "",
-        full_name=user.full_name,
-        expires_at=expires_at
-    )
-
-    invite = await bot.create_chat_invite_link(
-        chat_id=CHANNEL_ID,
-        member_limit=1,
-        expire_date=int((datetime.now() + timedelta(hours=24)).timestamp())
-    )
-
-    expires_str = (datetime.now() + timedelta(days=30)).strftime('%d.%m.%Y')
-    await message.answer(
-        f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
-        f"Оплата прошла успешно.\n\n"
-        f"👇 Ссылка для входа в канал (действует 24 часа):\n"
-        f"{invite.invite_link}\n\n"
-        f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
-        f"Удачи в розыгрыше! 🏆",
-        parse_mode="HTML"
-    )
-
-    subscribers = await get_active_subscribers()
+@router.callback_query(F.data.startswith("paid_"))
+async def process_paid(callback):
+    user = callback.from_user
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{user.id}"),
+        InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"decline_{user.id}"),
+    ]])
     await bot.send_message(
         ADMIN_ID,
-        f"💰 <b>Новый подписчик!</b>\n\n"
+        f"💰 <b>Запрос на подтверждение оплаты</b>\n\n"
         f"👤 {user.full_name}\n"
         f"🔗 @{user.username or 'без username'}\n"
-        f"🆔 {user.id}\n"
-        f"📅 До: {expires_str}\n\n"
-        f"👥 Всего активных: {len(subscribers)}",
-        parse_mode="HTML"
+        f"🆔 <code>{user.id}</code>",
+        parse_mode="HTML",
+        reply_markup=kb
     )
+    await callback.answer("Запрос отправлен! Подтвердим доступ в течение нескольких минут.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("confirm_"))
+async def process_confirm_payment(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    user_id = int(callback.data.removeprefix("confirm_"))
+    try:
+        chat = await bot.get_chat(user_id)
+        full_name = f"{chat.first_name or ''} {chat.last_name or ''}".strip() or str(user_id)
+        username = chat.username or ""
+    except Exception:
+        full_name = str(user_id)
+        username = ""
+    await _activate_user(user_id, full_name, username)
+    try:
+        await callback.message.edit_text(
+            callback.message.text + "\n\n✅ <b>Подтверждено! Доступ выдан.</b>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    await callback.answer("Доступ выдан!")
+
+
+@router.callback_query(F.data.startswith("decline_"))
+async def process_decline_payment(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    user_id = int(callback.data.removeprefix("decline_"))
+    try:
+        await bot.send_message(
+            user_id,
+            "❌ <b>Оплата не подтверждена</b>\n\n"
+            "Мы не нашли вашу оплату. Убедитесь что платёж прошёл и попробуйте снова.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Попробовать снова", callback_data="pay")]
+            ])
+        )
+    except Exception:
+        pass
+    try:
+        await callback.message.edit_text(
+            callback.message.text + "\n\n❌ <b>Отклонено.</b>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    await callback.answer("Отклонено")
 
 
 @router.message(Command("subscribers"))
@@ -212,6 +274,26 @@ async def cmd_kick(message: Message):
     await bot.unban_chat_member(CHANNEL_ID, user_id)
     await deactivate_subscriber(user_id)
     await message.answer(f"✅ Пользователь <code>{user_id}</code> удалён из канала.", parse_mode="HTML")
+
+
+@router.message(Command("confirm"))
+async def cmd_confirm(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("Использование: /confirm USER_ID")
+        return
+    user_id = int(args[1])
+    try:
+        chat = await bot.get_chat(user_id)
+        full_name = f"{chat.first_name or ''} {chat.last_name or ''}".strip() or str(user_id)
+        username = chat.username or ""
+    except Exception:
+        full_name = str(user_id)
+        username = ""
+    await _activate_user(user_id, full_name, username)
+    await message.answer(f"✅ Доступ выдан пользователю <code>{user_id}</code>", parse_mode="HTML")
 
 
 @router.message(Command("add_giveaway"))
@@ -284,6 +366,92 @@ async def cmd_set_winner(message: Message):
         )
     except Exception:
         pass
+
+
+def _draw_message(giveaway, subscribers):
+    user_id, username, full_name, _ = random.choice(subscribers)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🏆 Подтвердить победителя", callback_data=f"draw_ok_{giveaway[0]}_{user_id}"),
+        InlineKeyboardButton(text="🔄 Другой",                 callback_data=f"draw_roll_{giveaway[0]}"),
+    ]])
+    text = (
+        f"🎰 <b>Случайный победитель</b>\n\n"
+        f"🎁 Приз: <b>{giveaway[2]}</b>\n"
+        f"👥 Участников в пуле: <b>{len(subscribers)}</b>\n\n"
+        f"🏆 <b>Победитель:</b>\n"
+        f"👤 {full_name}\n"
+        f"🔗 @{username or '—'}\n"
+        f"🆔 <code>{user_id}</code>"
+    )
+    return text, kb
+
+
+@router.message(Command("draw"))
+async def cmd_draw(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    giveaway = await get_active_giveaway()
+    if not giveaway:
+        await message.answer("Нет активного розыгрыша. Создай через /add_giveaway")
+        return
+    subscribers = await get_active_subscribers()
+    if not subscribers:
+        await message.answer("Нет активных подписчиков для розыгрыша.")
+        return
+    text, kb = _draw_message(giveaway, subscribers)
+    await message.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("draw_roll_"))
+async def process_draw_reroll(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    giveaway = await get_active_giveaway()
+    if not giveaway:
+        await callback.answer("Розыгрыш уже завершён.", show_alert=True)
+        return
+    subscribers = await get_active_subscribers()
+    if not subscribers:
+        await callback.answer("Нет подписчиков.", show_alert=True)
+        return
+    text, kb = _draw_message(giveaway, subscribers)
+    await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("draw_ok_"))
+async def process_draw_confirm(callback):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+    _, _, giveaway_id, user_id = callback.data.split("_")
+    giveaway_id, user_id = int(giveaway_id), int(user_id)
+    giveaway = await get_active_giveaway()
+    prize = giveaway[2] if giveaway else "Приз"
+    subscribers = await get_active_subscribers()
+    info = next((s for s in subscribers if s[0] == user_id), None)
+    full_name = info[2] if info else str(user_id)
+    username  = info[1] if info else ""
+    await add_winner(giveaway_id=giveaway_id, user_id=user_id, username=username, full_name=full_name)
+    try:
+        await bot.send_message(
+            user_id,
+            f"🎉 <b>Поздравляем! Ты победил в розыгрыше!</b>\n\n"
+            f"🎁 Приз: <b>{prize}</b>\n\n"
+            f"Свяжись с организатором для получения приза.",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    try:
+        await callback.message.edit_text(
+            callback.message.text + "\n\n✅ <b>Победитель подтверждён и уведомлён!</b>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+    await callback.answer("Готово!")
 
 
 async def scheduler():

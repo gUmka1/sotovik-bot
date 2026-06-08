@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl
 
 import aiosqlite
 from aiogram import Bot
-from aiogram.types import LabeledPrice
+from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -15,8 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-YUKASSA_TOKEN = os.getenv("YUKASSA_TOKEN")
-PRICE = 30000
+QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_feZg.png")
 
 bot = Bot(token=BOT_TOKEN)
 app = FastAPI()
@@ -108,14 +107,19 @@ async def request_payment(request: Request):
     user = validate_init_data(body.get("initData", ""))
     if not user:
         raise HTTPException(status_code=403, detail="Invalid initData")
-    await bot.send_invoice(
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{user['id']}")]
+    ])
+    await bot.send_photo(
         chat_id=user["id"],
-        title="Подписка Сотовик Клуб",
-        description="Закрытый канал + розыгрыш техники каждый месяц в прямом эфире",
-        payload="subscription_1month",
-        provider_token=YUKASSA_TOKEN,
-        currency="RUB",
-        prices=[LabeledPrice(label="Подписка на 1 месяц", amount=PRICE)],
-        start_parameter="subscription"
+        photo=FSInputFile(QR_PATH),
+        caption=(
+            "💳 <b>Оплата подписки — 1000 ₽/мес</b>\n\n"
+            "1. Отсканируй QR-код камерой телефона\n"
+            "2. Оплати 1000 ₽\n"
+            "3. Нажми <b>«✅ Я оплатил»</b> — мы проверим и откроем доступ в течение нескольких минут"
+        ),
+        parse_mode="HTML",
+        reply_markup=kb
     )
     return {"ok": True}
