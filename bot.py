@@ -382,16 +382,30 @@ async def cmd_confirm(message: Message):
         return
     args = message.text.split()
     if len(args) < 2:
-        await message.answer("Использование: /confirm USER_ID")
+        await message.answer("Использование: /confirm USER_ID или /confirm @username")
         return
-    user_id = int(args[1])
-    try:
-        chat = await bot.get_chat(user_id)
+    arg = args[1]
+    if arg.lstrip("-").isdigit():
+        user_id = int(arg)
+        try:
+            chat = await bot.get_chat(user_id)
+            full_name = f"{chat.first_name or ''} {chat.last_name or ''}".strip() or str(user_id)
+            username = chat.username or ""
+        except Exception:
+            full_name = str(user_id)
+            username = ""
+    else:
+        try:
+            chat = await bot.get_chat(arg if arg.startswith("@") else f"@{arg}")
+        except Exception:
+            await message.answer(
+                "Не удалось найти пользователя по username. "
+                "Это работает только если пользователь уже хотя бы раз писал боту."
+            )
+            return
+        user_id = chat.id
         full_name = f"{chat.first_name or ''} {chat.last_name or ''}".strip() or str(user_id)
         username = chat.username or ""
-    except Exception:
-        full_name = str(user_id)
-        username = ""
     await _activate_user(user_id, full_name, username)
     await message.answer(f"✅ Доступ выдан пользователю <code>{user_id}</code>", parse_mode="HTML")
 
