@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 
 BOT_TOKEN  = os.getenv("BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-ADMIN_ID   = int(os.getenv("ADMIN_ID"))
+ADMIN_IDS  = [int(x) for x in os.getenv("ADMIN_IDS", os.getenv("ADMIN_ID", "")).replace(" ", "").split(",") if x]
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 
 QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
@@ -33,6 +33,14 @@ QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()
 router = Router()
+
+
+async def notify_admins(text: str, **kwargs):
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(admin_id, text, **kwargs)
+        except Exception:
+            logging.exception("Failed to notify admin %s", admin_id)
 
 
 async def _activate_user(user_id: int, full_name: str, username: str):
@@ -73,8 +81,7 @@ async def _activate_user(user_id: int, full_name: str, username: str):
 
     subscribers = await get_active_subscribers()
     link_status = invite_link or "⚠️ НЕ УДАЛОСЬ СОЗДАТЬ — отправь ссылку вручную!"
-    await bot.send_message(
-        ADMIN_ID,
+    await notify_admins(
         f"💰 <b>Новый подписчик!</b>\n\n"
         f"👤 {full_name}\n"
         f"🔗 @{username or 'без username'}\n"
@@ -270,8 +277,7 @@ async def process_paid(callback):
         InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{user.id}"),
         InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"decline_{user.id}"),
     ]])
-    await bot.send_message(
-        ADMIN_ID,
+    await notify_admins(
         f"💰 <b>Запрос на подтверждение оплаты</b>\n\n"
         f"👤 {user.full_name}\n"
         f"🔗 @{user.username or 'без username'}\n"
@@ -284,7 +290,7 @@ async def process_paid(callback):
 
 @router.callback_query(F.data.startswith("confirm_"))
 async def process_confirm_payment(callback):
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("Нет доступа.", show_alert=True)
         return
     user_id = int(callback.data.removeprefix("confirm_"))
@@ -313,7 +319,7 @@ async def process_confirm_payment(callback):
 
 @router.callback_query(F.data.startswith("decline_"))
 async def process_decline_payment(callback):
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("Нет доступа.", show_alert=True)
         return
     user_id = int(callback.data.removeprefix("decline_"))
@@ -341,7 +347,7 @@ async def process_decline_payment(callback):
 
 @router.message(Command("subscribers"))
 async def cmd_subscribers(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     subscribers = await get_active_subscribers()
     if not subscribers:
@@ -357,7 +363,7 @@ async def cmd_subscribers(message: Message):
 
 @router.message(Command("kick"))
 async def cmd_kick(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     args = message.text.split()
     if len(args) < 2:
@@ -372,7 +378,7 @@ async def cmd_kick(message: Message):
 
 @router.message(Command("confirm"))
 async def cmd_confirm(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     args = message.text.split()
     if len(args) < 2:
@@ -392,7 +398,7 @@ async def cmd_confirm(message: Message):
 
 @router.message(Command("add_giveaway"))
 async def cmd_add_giveaway(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     # Format: /add_giveaway iPhone 16 Pro | 2026-06-30 | Главный приз месяца
     parts = message.text.removeprefix("/add_giveaway").strip().split("|")
@@ -420,7 +426,7 @@ async def cmd_add_giveaway(message: Message):
 
 @router.message(Command("set_winner"))
 async def cmd_set_winner(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     args = message.text.split()
     if len(args) < 2:
@@ -482,7 +488,7 @@ def _draw_message(giveaway, subscribers):
 
 @router.message(Command("draw"))
 async def cmd_draw(message: Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
     giveaway = await get_active_giveaway()
     if not giveaway:
@@ -498,7 +504,7 @@ async def cmd_draw(message: Message):
 
 @router.callback_query(F.data.startswith("draw_roll_"))
 async def process_draw_reroll(callback):
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("Нет доступа.", show_alert=True)
         return
     giveaway = await get_active_giveaway()
@@ -516,7 +522,7 @@ async def process_draw_reroll(callback):
 
 @router.callback_query(F.data.startswith("draw_ok_"))
 async def process_draw_confirm(callback):
-    if callback.from_user.id != ADMIN_ID:
+    if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("Нет доступа.", show_alert=True)
         return
     _, _, giveaway_id, user_id = callback.data.split("_")

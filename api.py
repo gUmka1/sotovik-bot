@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID  = int(os.getenv("ADMIN_ID"))
+ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", os.getenv("ADMIN_ID", "")).replace(" ", "").split(",") if x]
 QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
 
 bot = Bot(token=BOT_TOKEN)
@@ -119,13 +119,17 @@ async def request_payment_confirmation(request: Request):
     ]])
     full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or str(user["id"])
     username  = user.get("username", "")
-    await bot.send_message(
-        ADMIN_ID,
-        f"💰 <b>Запрос на подтверждение оплаты</b>\n\n"
-        f"👤 {full_name}\n"
-        f"🔗 @{username or 'без username'}\n"
-        f"🆔 <code>{user['id']}</code>",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(
+                admin_id,
+                f"💰 <b>Запрос на подтверждение оплаты</b>\n\n"
+                f"👤 {full_name}\n"
+                f"🔗 @{username or 'без username'}\n"
+                f"🆔 <code>{user['id']}</code>",
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+        except Exception:
+            pass
     return {"ok": True}
