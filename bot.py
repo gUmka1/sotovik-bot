@@ -59,25 +59,28 @@ async def _activate_user(user_id: int, full_name: str, username: str):
         logging.error("create_chat_invite_link failed for CHANNEL_ID=%s: %s", CHANNEL_ID, e)
         invite_link = None
 
-    if invite_link:
-        await bot.send_message(
-            user_id,
-            f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
-            f"Оплата подтверждена.\n\n"
-            f"👇 Ссылка для входа в канал (действует 24 часа):\n"
-            f"{invite_link}\n\n"
-            f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
-            f"Удачи в розыгрыше! 🏆",
-            parse_mode="HTML"
-        )
-    else:
-        await bot.send_message(
-            user_id,
-            f"🎉 <b>Оплата подтверждена!</b>\n\n"
-            f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
-            f"Ссылку на канал администратор пришлёт вам в ближайшее время.",
-            parse_mode="HTML"
-        )
+    try:
+        if invite_link:
+            await bot.send_message(
+                user_id,
+                f"🎉 <b>Добро пожаловать в Сотовик Клуб!</b>\n\n"
+                f"Оплата подтверждена.\n\n"
+                f"👇 Ссылка для входа в канал (действует 24 часа):\n"
+                f"{invite_link}\n\n"
+                f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+                f"Удачи в розыгрыше! 🏆",
+                parse_mode="HTML"
+            )
+        else:
+            await bot.send_message(
+                user_id,
+                f"🎉 <b>Оплата подтверждена!</b>\n\n"
+                f"📅 Подписка активна до: <b>{expires_str}</b>\n\n"
+                f"Ссылку на канал администратор пришлёт вам в ближайшее время.",
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        logging.error("Failed to message user %s after activation: %s", user_id, e)
 
     subscribers = await get_active_subscribers()
     link_status = invite_link or "⚠️ НЕ УДАЛОСЬ СОЗДАТЬ — отправь ссылку вручную!"
