@@ -6,15 +6,16 @@ from urllib.parse import parse_qsl
 
 import aiosqlite
 from aiogram import Bot
-from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID  = int(os.getenv("ADMIN_ID"))
 QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
 
 bot = Bot(token=BOT_TOKEN)
@@ -51,6 +52,11 @@ def validate_init_data(init_data: str) -> dict | None:
 async def serve_app():
     with open("webapp/index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+
+@app.get("/qr.png")
+async def get_qr():
+    return FileResponse(QR_PATH, media_type="image/png")
 
 
 @app.get("/api/user/{user_id}")
@@ -101,28 +107,24 @@ async def get_winners():
     ]
 
 
-@app.post("/api/pay")
-async def request_payment(request: Request):
+@app.post("/api/paid")
+async def request_payment_confirmation(request: Request):
     body = await request.json()
     user = validate_init_data(body.get("initData", ""))
     if not user:
         raise HTTPException(status_code=403, detail="Invalid initData")
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{user['id']}")]
-    ])
-    await bot.send_photo(
-        chat_id=user["id"],
-        photo=FSInputFile(QR_PATH),
-        caption=(
-            "💳 <b>Оплата подписки — 1000 ₽/мес</b>\n\n"
-            "📱 <b>С телефона (СБП):</b>\n"
-            "Открой банковское приложение → «Перевод по номеру телефона» → введи номер:\n"
-            "<code>+7 911 909 2200</code>\n"
-            "Сумма: <b>1000 ₽</b>\n\n"
-            "🖥 <b>С компьютера:</b>\n"
-            "Отсканируй QR-код камерой телефона\n\n"
-            "После оплаты нажми <b>«✅ Я оплатил»</b> — проверим и откроем доступ в течение нескольких минут"
-        ),
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"confirm_{user['id']}"),
+        InlineKeyboardButton(text="❌ Отклонить",   callback_data=f"decline_{user['id']}"),
+    ]])
+    full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or str(user["id"])
+    username  = user.get("username", "")
+    await bot.send_message(
+        ADMIN_ID,
+        f"💰 <b>Запрос на подтверждение оплаты</b>\n\n"
+        f"👤 {full_name}\n"
+        f"🔗 @{username or 'без username'}\n"
+        f"🆔 <code>{user['id']}</code>",
         parse_mode="HTML",
         reply_markup=kb
     )
