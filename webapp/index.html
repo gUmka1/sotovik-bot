@@ -193,6 +193,74 @@
             color: var(--tg-theme-hint-color, #8e8e93);
             font-size: 15px;
         }
+
+        /* Payment overlay */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--tg-theme-bg-color, #f2f2f7);
+            z-index: 100;
+            overflow-y: auto;
+            padding: 16px;
+            padding-bottom: 100px;
+        }
+        .overlay-title {
+            font-size: 19px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 14px;
+        }
+        .qr-img {
+            display: block;
+            width: 100%;
+            max-width: 320px;
+            margin: 0 auto 16px;
+            border-radius: 16px;
+        }
+        .pay-card {
+            background: var(--tg-theme-section-bg-color, #fff);
+            border-radius: 16px;
+            padding: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .pay-card h3 {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .pay-card .phone-number {
+            display: inline-block;
+            background: var(--tg-theme-bg-color, #f2f2f7);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-weight: 700;
+            font-size: 15px;
+            margin: 6px 0;
+            letter-spacing: 0.5px;
+        }
+        .pay-card .amount {
+            font-weight: 700;
+        }
+        .pay-card .block {
+            margin-bottom: 14px;
+        }
+        .confirm-btn {
+            display: block;
+            width: 100%;
+            margin-top: 16px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: #30D158;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity .15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .confirm-btn:active { opacity: 0.75; }
     </style>
 </head>
 <body>
@@ -204,6 +272,25 @@
 </div>
 
 <div id="root"><div class="loading">Загрузка...</div></div>
+
+<div id="payOverlay" class="overlay" style="display:none">
+    <div class="overlay-title">💳 Оплата подписки</div>
+    <img src="/qr.png" class="qr-img" alt="QR-код для оплаты">
+    <div class="pay-card">
+        <div class="block">
+            <h3>📱 С телефона (СБП)</h3>
+            Открой банковское приложение → «Перевод по номеру телефона» → введи номер:
+            <div class="phone-number">+7 911 909 2200</div>
+            Сумма: <span class="amount">2400 ₽</span>
+        </div>
+        <div class="block">
+            <h3>🖥 С компьютера</h3>
+            Отсканируй QR-код камерой телефона
+        </div>
+        После оплаты нажми «✅ Я оплатил» — проверим и откроем доступ в течение нескольких минут
+        <button class="confirm-btn" onclick="confirmPaid()">✅ Я оплатил</button>
+    </div>
+</div>
 
 <script>
 const tg = window.Telegram.WebApp;
@@ -233,23 +320,34 @@ function plural(n, one, few, many) {
 }
 
 // ---- payment ----
-async function requestPayment() {
-    tg.MainButton.showProgress();
+let mainButtonWasVisible = false;
+
+function openPayment() {
+    mainButtonWasVisible = tg.MainButton.isVisible;
+    tg.MainButton.hide();
+    tg.BackButton.show();
+    document.getElementById('payOverlay').style.display = 'block';
+}
+
+function closePayment() {
+    document.getElementById('payOverlay').style.display = 'none';
+    tg.BackButton.hide();
+    if (mainButtonWasVisible) tg.MainButton.show();
+}
+
+tg.BackButton.onClick(closePayment);
+
+async function confirmPaid() {
     try {
-        const res = await fetch('/api/pay', {
+        const res = await fetch('/api/paid', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({initData})
         });
-        if (res.ok) {
-            tg.MainButton.hideProgress();
-            tg.showAlert('QR-код отправлен в чат с ботом!\nОтсканируй и оплати 2400 ₽, затем нажми «Я оплатил».', () => tg.close());
-        } else {
-            throw new Error();
-        }
+        if (!res.ok) throw new Error();
+        tg.showAlert('Заявка отправлена! Проверим оплату и откроем доступ в течение нескольких минут.', () => closePayment());
     } catch {
-        tg.MainButton.hideProgress();
-        tg.showAlert('Ошибка. Попробуй оформить через бот командой /pay');
+        tg.showAlert('Ошибка отправки. Попробуй ещё раз или напиши в бот командой /start.');
     }
 }
 
@@ -263,7 +361,7 @@ function renderStatus(s) {
             <div class="status-emoji">❌</div>
             <div class="status-title">Подписка не активна</div>
             <div class="status-sub">Оптовые цены на Apple, Dyson, Sony + розыгрыш iPhone 17 / 17 Pro / 17 Pro Max, MacBook, iMac, AirPods каждый месяц</div>
-            <button class="pay-btn" onclick="requestPayment()">💳 Оформить — 2400 ₽/мес</button>
+            <button class="pay-btn" onclick="openPayment()">💳 Оформить — 2400 ₽/мес</button>
           </div>`;
     }
     const days = daysDiff(s.expires_at);
@@ -276,7 +374,7 @@ function renderStatus(s) {
             <div class="status-emoji">⏰</div>
             <div class="status-title">Истекает через ${days} ${plural(days,'день','дня','дней')}</div>
             <div class="status-sub">Активна до ${date}. Продли чтобы не потерять место в розыгрыше!</div>
-            <button class="pay-btn" onclick="requestPayment()">🔄 Продлить подписку</button>
+            <button class="pay-btn" onclick="openPayment()">🔄 Продлить подписку</button>
           </div>`;
     }
     return `
@@ -359,7 +457,7 @@ async function main() {
     }
 }
 
-tg.MainButton.onClick(requestPayment);
+tg.MainButton.onClick(openPayment);
 main();
 </script>
 </body>
