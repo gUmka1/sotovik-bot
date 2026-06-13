@@ -27,7 +27,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 ADMIN_ID   = int(os.getenv("ADMIN_ID"))
 WEBAPP_URL = os.getenv("WEBAPP_URL")
 
-QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_feZg.png")
+QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
 
 bot = Bot(token=BOT_TOKEN)
 dp  = Dispatcher()

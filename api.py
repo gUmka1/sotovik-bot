@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_feZg.png")
+QR_PATH = os.path.join(os.path.dirname(__file__), "qrcod_foxI.png")
 
 bot = Bot(token=BOT_TOKEN)
 app = FastAPI()
