@@ -86,7 +86,7 @@ async def _activate_user(user_id: int, full_name: str, username: str):
 
 
 def main_kb():
-    buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 1000 ₽/мес", callback_data="pay")]]
+    buttons = [[InlineKeyboardButton(text="💳 Оформить подписку — 2400 ₽/мес", callback_data="pay")]]
     if WEBAPP_URL:
         buttons.insert(0, [InlineKeyboardButton(text="🎰 Открыть Сотовик Клуб", web_app=WebAppInfo(url=WEBAPP_URL))])
     buttons.append([
@@ -106,7 +106,7 @@ async def cmd_start(message: Message):
         "• 📦 Доступ к закупочным оптовым ценам на ориг. технику Apple, Dyson, Sony и других брендов\n"
         "• 🎰 Ежемесячный розыгрыш iPhone 17 / 17 Pro / 17 Pro Max, MacBook, iMac, AirPods\n"
         "• 📺 Прямой эфир с объявлением победителя\n\n"
-        "💰 <b>1000 ₽ / месяц</b>\n\n"
+        "💰 <b>2400 ₽ / месяц</b>\n\n"
         "Нажми чтобы оформить 👇",
         parse_mode="HTML",
         reply_markup=main_kb()
@@ -182,11 +182,11 @@ async def process_pay(callback):
         chat_id=callback.from_user.id,
         photo=FSInputFile(QR_PATH),
         caption=(
-            "💳 <b>Оплата подписки — 1000 ₽/мес</b>\n\n"
+            "💳 <b>Оплата подписки — 2400 ₽/мес</b>\n\n"
             "📱 <b>С телефона (СБП):</b>\n"
             "Открой банковское приложение → «Перевод по номеру телефона» → введи номер:\n"
             "<code>+7 911 909 2200</code>\n"
-            "Сумма: <b>1000 ₽</b>\n\n"
+            "Сумма: <b>2400 ₽</b>\n\n"
             "🖥 <b>С компьютера:</b>\n"
             "Отсканируй QR-код камерой телефона\n\n"
             "После оплаты нажми <b>«✅ Я оплатил»</b> — проверим и откроем доступ в течение нескольких минут"
@@ -516,7 +516,7 @@ async def scheduler():
                     "Оформи снова — и сразу вернёшься + попадёшь в ближайший розыгрыш! 🏆",
                     parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="💳 Оформить снова — 1000 ₽/мес", callback_data="pay")]
+                        [InlineKeyboardButton(text="💳 Оформить снова — 2400 ₽/мес", callback_data="pay")]
                     ])
                 )
             except Exception:
