@@ -11,13 +11,14 @@ from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import Command
 from aiogram.types import (
     Message, FSInputFile,
-    InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+    InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo,
+    ReplyKeyboardMarkup, KeyboardButton
 )
 
 from database import (
     init_db, add_subscriber, get_active_subscribers,
     deactivate_subscriber, get_expiring_soon, get_expired,
-    add_giveaway, get_active_giveaway, add_winner
+    add_giveaway, get_active_giveaway, add_winner, get_subscriber
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -96,6 +97,22 @@ def main_kb():
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+BTN_PAY    = "💳 Оформить подписку"
+BTN_STATUS = "📊 Моя подписка"
+BTN_FAQ    = "❓ Как устроен розыгрыш?"
+BTN_TERMS  = "📋 Условия"
+BTN_APP    = "🎰 Открыть Сотовик Клуб"
+
+
+def main_reply_kb():
+    rows = []
+    if WEBAPP_URL:
+        rows.append([KeyboardButton(text=BTN_APP, web_app=WebAppInfo(url=WEBAPP_URL))])
+    rows.append([KeyboardButton(text=BTN_PAY), KeyboardButton(text=BTN_STATUS)])
+    rows.append([KeyboardButton(text=BTN_FAQ), KeyboardButton(text=BTN_TERMS)])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     name = message.from_user.first_name
@@ -111,14 +128,54 @@ async def cmd_start(message: Message):
         parse_mode="HTML",
         reply_markup=main_kb()
     )
+    await message.answer("Меню всегда под рукой 👇", reply_markup=main_reply_kb())
+
+
+@router.message(F.text == BTN_PAY)
+async def menu_pay(message: Message):
+    await process_pay_for(message.from_user.id)
+
+
+@router.message(F.text == BTN_FAQ)
+async def menu_faq(message: Message):
+    await process_faq_for(message)
+
+
+@router.message(F.text == BTN_TERMS)
+async def menu_terms(message: Message):
+    await process_conditions_for(message)
+
+
+@router.message(F.text == BTN_STATUS)
+async def menu_status(message: Message):
+    sub = await get_subscriber(message.from_user.id)
+    if not sub or not sub[2]:
+        await message.answer(
+            "❌ <b>Подписка не активна</b>\n\nОформи подписку — 2400 ₽/мес 👇",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="💳 Оформить подписку", callback_data="pay")]
+            ])
+        )
+        return
+    expires = datetime.fromisoformat(sub[1]).strftime('%d.%m.%Y')
+    await message.answer(
+        f"✅ <b>Подписка активна</b>\n\nДействует до: <b>{expires}</b>",
+        parse_mode="HTML"
+    )
 
 
 @router.callback_query(F.data == "faq")
 async def process_faq(callback):
+    await process_faq_for(callback.message)
+    await callback.answer()
+
+
+async def process_faq_for(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оформить подписку", callback_data="pay")]
     ])
-    await callback.message.answer(
+    await message.answer(
         "❓ <b>Как устроен розыгрыш?</b>\n\n"
         "1. Ты оформляешь подписку и попадаешь в закрытый канал\n"
         "2. Получаешь доступ к оптовым закупочным ценам на ориг. технику Apple, Dyson, Sony и других брендов\n"
@@ -129,12 +186,9 @@ async def process_faq(callback):
         parse_mode="HTML",
         reply_markup=kb
     )
-    await callback.answer()
 
 
-@router.callback_query(F.data == "conditions")
-async def process_conditions(callback):
-    text = (
+CONDITIONS_TEXT = (
         "⚡️ <b>РОЗЫГРЫШ iPhone 17 PRO 256Gb ЗА ПОДПИСКУ</b>\n\n"
         "Хотите получить главный приз — новенький iPhone 17 PRO и ещё 9 оригинальных гаджетов для Apple iPhone?\n"
         "Вы уже с нами!?\n\n"
@@ -165,21 +219,34 @@ async def process_conditions(callback):
         "8. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple\n"
         "9. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple\n"
         "10. ⚡️ Оригинальное сетевое зарядное устройство 20W Apple"
-    )
+)
+
+
+@router.callback_query(F.data == "conditions")
+async def process_conditions(callback):
+    await process_conditions_for(callback.message)
+    await callback.answer()
+
+
+async def process_conditions_for(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Оформить подписку", callback_data="pay")]
     ])
-    await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
-    await callback.answer()
+    await message.answer(CONDITIONS_TEXT, parse_mode="HTML", reply_markup=kb)
 
 
 @router.callback_query(F.data == "pay")
 async def process_pay(callback):
+    await process_pay_for(callback.from_user.id)
+    await callback.answer()
+
+
+async def process_pay_for(user_id: int):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{callback.from_user.id}")]
+        [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{user_id}")]
     ])
     await bot.send_photo(
-        chat_id=callback.from_user.id,
+        chat_id=user_id,
         photo=FSInputFile(QR_PATH),
         caption=(
             "💳 <b>Оплата подписки — 2400 ₽/мес</b>\n\n"
@@ -194,7 +261,6 @@ async def process_pay(callback):
         parse_mode="HTML",
         reply_markup=kb
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("paid_"))
